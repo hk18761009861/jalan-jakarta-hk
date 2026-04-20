@@ -1,6 +1,32 @@
-- name: Overwrite Android config
+name: Build Android APK
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.6'
+
+      - name: Setup project
         run: |
-          # 完全覆盖 build.gradle
+          flutter create --org com.jalanjakarta tmpapp
+          cp -r jalan_jakarta/lib tmpapp/
+          mkdir -p tmpapp/assets
+          cp jalan_jakarta/pubspec.yaml tmpapp/pubspec.yaml
+          cd tmpapp && flutter pub get
+
+      - name: Overwrite Android config
+        run: |
           cat > tmpapp/android/build.gradle << 'EOF'
           buildscript {
               ext.kotlin_version = '1.7.10'
@@ -13,20 +39,17 @@
                   classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
               }
           }
-
           allprojects {
               repositories {
                   google()
                   mavenCentral()
               }
           }
-
           task clean(type: Delete) {
               delete rootProject.buildDir
           }
           EOF
 
-          # 完全覆盖 app/build.gradle
           cat > tmpapp/android/app/build.gradle << 'EOF'
           def localProperties = new Properties()
           def localPropertiesFile = rootProject.file('local.properties')
@@ -35,19 +58,10 @@
                   localProperties.load(reader)
               }
           }
-
           def flutterRoot = localProperties.getProperty('flutter.sdk')
-          assert flutterRoot != null, "Flutter SDK not found. Define location with flutter.sdk in the local.properties file."
-
-          def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-          if (flutterVersionCode == null) {
-              flutterVersionCode = '1'
-          }
-
-          def flutterVersionName = localProperties.getProperty('flutter.versionName')
-          if (flutterVersionName == null) {
-              flutterVersionName = '1.0'
-          }
+          assert flutterRoot != null, "Flutter SDK not found."
+          def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '1'
+          def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0'
 
           apply plugin: 'com.android.application'
           apply plugin: 'kotlin-android'
@@ -57,20 +71,16 @@
               namespace "com.jalanjakarta.app"
               compileSdkVersion 34
               ndkVersion "25.1.8937393"
-
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
                   targetCompatibility JavaVersion.VERSION_1_8
               }
-
               kotlinOptions {
                   jvmTarget = '1.8'
               }
-
               sourceSets {
                   main.java.srcDirs += 'src/main/kotlin'
               }
-
               defaultConfig {
                   applicationId "com.jalanjakarta.app"
                   minSdkVersion 21
@@ -79,7 +89,6 @@
                   versionName flutterVersionName
                   multiDexEnabled true
               }
-
               buildTypes {
                   release {
                       signingConfig signingConfigs.debug
@@ -88,22 +97,28 @@
                   }
               }
           }
-
           flutter {
               source '../..'
           }
-
           dependencies {
               implementation 'androidx.multidex:multidex:2.0.1'
           }
           EOF
 
-          # 关闭 Jetifier — 这是真正的根本原因！
           cat > tmpapp/android/gradle.properties << 'EOF'
           org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m
           android.useAndroidX=true
           android.enableJetifier=false
           EOF
 
-          # 清除所有 Gradle 缓存
           rm -rf ~/.gradle/caches/
+
+      - name: Build APK
+        working-directory: tmpapp
+        run: flutter build apk --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: JalanJakarta-APK
+          path: tmpapp/build/app/outputs/flutter-apk/app-debug.apk
