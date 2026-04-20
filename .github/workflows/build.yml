@@ -23,12 +23,56 @@ jobs:
           cp -r jalan_jakarta/lib tmpapp/
           mkdir -p tmpapp/assets
           cp jalan_jakarta/pubspec.yaml tmpapp/pubspec.yaml
-          sed -i 's/minSdkVersion 16/minSdkVersion 21/' tmpapp/android/app/build.gradle
-          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/' tmpapp/android/app/build.gradle
-          sed -i "s/ext.kotlin_version = '1.7.10'/ext.kotlin_version = '1.9.0'/" tmpapp/android/build.gradle
-          sed -i "s/ext.kotlin_version = '1.8.10'/ext.kotlin_version = '1.9.0'/" tmpapp/android/build.gradle
-          sed -i "s/ext.kotlin_version = '1.8.20'/ext.kotlin_version = '1.9.0'/" tmpapp/android/build.gradle
-          sed -i "s/ext.kotlin_version = '1.8.22'/ext.kotlin_version = '1.9.0'/" tmpapp/android/build.gradle
+
+          # 强制写入正确的 build.gradle（app级别）
+          cat > tmpapp/android/app/build.gradle << 'EOF'
+          apply plugin: 'com.android.application'
+          apply plugin: 'kotlin-android'
+          apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+          android {
+              compileSdkVersion 34
+              defaultConfig {
+                  applicationId "com.jalanjakarta.app"
+                  minSdkVersion 21
+                  targetSdkVersion 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.debug
+                  }
+              }
+          }
+          flutter {
+              source '../..'
+          }
+          dependencies {
+              implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22"
+          }
+          EOF
+
+          # 强制写入正确的 build.gradle（项目级别）
+          cat > tmpapp/android/build.gradle << 'EOF'
+          buildscript {
+              ext.kotlin_version = '1.9.22'
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:7.3.0'
+                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
+
           cd tmpapp
           flutter pub get
 
