@@ -25,44 +25,116 @@ jobs:
           cp jalan_jakarta/pubspec.yaml tmpapp/pubspec.yaml
           cd tmpapp && flutter pub get
 
-      - name: Fix Android config
+      - name: Overwrite Android config
         run: |
-          python3 - << 'PYEOF'
-          import re
+          # 完全覆盖 build.gradle
+          cat > tmpapp/android/build.gradle << 'EOF'
+          buildscript {
+              ext.kotlin_version = '1.9.22'
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:7.3.0'
+                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+              }
+          }
 
-          # 修复 build.gradle - 统一 kotlin 版本为 1.9.22
-          with open('tmpapp/android/build.gradle', 'r') as f:
-              content = f.read()
-          content = re.sub(
-              r"ext\.kotlin_version\s*=\s*'[^']+'",
-              "ext.kotlin_version = '1.9.22'",
-              content
-          )
-          with open('tmpapp/android/build.gradle', 'w') as f:
-              f.write(content)
-          print("=== build.gradle ===")
-          print(content)
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              configurations.all {
+                  resolutionStrategy {
+                      force "org.jetbrains.kotlin:kotlin-stdlib:1.9.22"
+                      force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22"
+                      force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22"
+                      force "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22"
+                  }
+              }
+          }
 
-          # 修复 app/build.gradle
-          with open('tmpapp/android/app/build.gradle', 'r') as f:
-              content = f.read()
+          task clean(type: Delete) {
+              delete rootProject.buildDir
+          }
+          EOF
 
-          # 修复 minSdkVersion
-          content = re.sub(r'minSdkVersion\s+\S+', 'minSdkVersion 21', content)
+          # 完全覆盖 app/build.gradle
+          cat > tmpapp/android/app/build.gradle << 'EOF'
+          def localProperties = new Properties()
+          def localPropertiesFile = rootProject.file('local.properties')
+          if (localPropertiesFile.exists()) {
+              localPropertiesFile.withReader('UTF-8') { reader ->
+                  localProperties.load(reader)
+              }
+          }
 
-          # 关键：删掉手动写死的 kotlin-stdlib 依赖行，避免版本冲突
-          content = re.sub(
-              r"\s*implementation\s+['\"]org\.jetbrains\.kotlin:kotlin-stdlib[^'\"]*['\"]",
-              '',
-              content
-          )
+          def flutterRoot = localProperties.getProperty('flutter.sdk')
+          assert flutterRoot != null, "Flutter SDK not found. Define location with flutter.sdk in the local.properties file."
 
-          with open('tmpapp/android/app/build.gradle', 'w') as f:
-              f.write(content)
-          print("=== app/build.gradle ===")
-          print(content)
+          def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+          if (flutterVersionCode == null) {
+              flutterVersionCode = '1'
+          }
 
-          PYEOF
+          def flutterVersionName = localProperties.getProperty('flutter.versionName')
+          if (flutterVersionName == null) {
+              flutterVersionName = '1.0'
+          }
+
+          apply plugin: 'com.android.application'
+          apply plugin: 'kotlin-android'
+          apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+
+          android {
+              namespace "com.jalanjakarta.app"
+              compileSdkVersion 34
+              ndkVersion "25.1.8937393"
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+
+              kotlinOptions {
+                  jvmTarget = '1.8'
+              }
+
+              sourceSets {
+                  main.java.srcDirs += 'src/main/kotlin'
+              }
+
+              defaultConfig {
+                  applicationId "com.jalanjakarta.app"
+                  minSdkVersion 21
+                  targetSdkVersion 34
+                  versionCode flutterVersionCode.toInteger()
+                  versionName flutterVersionName
+                  multiDexEnabled true
+              }
+
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.debug
+                      minifyEnabled false
+                      shrinkResources false
+                  }
+              }
+          }
+
+          flutter {
+              source '../..'
+          }
+
+          dependencies {
+              implementation 'androidx.multidex:multidex:2.0.1'
+          }
+          EOF
+
+          # 清除 Gradle 缓存中的旧 kotlin transforms
+          rm -rf ~/.gradle/caches/transforms-3/
 
       - name: Build APK
         working-directory: tmpapp
