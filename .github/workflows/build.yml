@@ -17,64 +17,37 @@ jobs:
         with:
           flutter-version: '3.19.6'
 
-      - name: Setup and build
+      - name: Setup project
         run: |
           flutter create --org com.jalanjakarta tmpapp
           cp -r jalan_jakarta/lib tmpapp/
           mkdir -p tmpapp/assets
           cp jalan_jakarta/pubspec.yaml tmpapp/pubspec.yaml
+          cd tmpapp && flutter pub get
 
-          # 强制写入正确的 build.gradle（app级别）
-          cat > tmpapp/android/app/build.gradle << 'EOF'
-          apply plugin: 'com.android.application'
-          apply plugin: 'kotlin-android'
-          apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
-          android {
-              compileSdkVersion 34
-              defaultConfig {
-                  applicationId "com.jalanjakarta.app"
-                  minSdkVersion 21
-                  targetSdkVersion 34
-                  versionCode 1
-                  versionName "1.0"
-              }
-              buildTypes {
-                  release {
-                      signingConfig signingConfigs.debug
-                  }
-              }
-          }
-          flutter {
-              source '../..'
-          }
-          dependencies {
-              implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22"
-          }
-          EOF
+      - name: Fix Android config
+        run: |
+          python3 - << 'PYEOF'
+          import re
 
-          # 强制写入正确的 build.gradle（项目级别）
-          cat > tmpapp/android/build.gradle << 'EOF'
-          buildscript {
-              ext.kotlin_version = '1.9.22'
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:7.3.0'
-                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-              }
-          }
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          EOF
+          # 修复 app/build.gradle
+          with open('tmpapp/android/app/build.gradle', 'r') as f:
+              content = f.read()
+          content = re.sub(r'minSdkVersion\s+\S+', 'minSdkVersion 21', content)
+          with open('tmpapp/android/app/build.gradle', 'w') as f:
+              f.write(content)
+          print("app/build.gradle:")
+          print(content)
 
-          cd tmpapp
-          flutter pub get
+          # 修复 build.gradle kotlin版本
+          with open('tmpapp/android/build.gradle', 'r') as f:
+              content = f.read()
+          content = re.sub(r"ext\.kotlin_version\s*=\s*'[^']+'", "ext.kotlin_version = '1.9.22'", content)
+          with open('tmpapp/android/build.gradle', 'w') as f:
+              f.write(content)
+          print("build.gradle:")
+          print(content)
+          PYEOF
 
       - name: Build APK
         working-directory: tmpapp
