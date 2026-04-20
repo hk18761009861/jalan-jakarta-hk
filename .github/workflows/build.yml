@@ -25,6 +25,15 @@ jobs:
           cp jalan_jakarta/pubspec.yaml tmpapp/pubspec.yaml
           cd tmpapp && flutter pub get
 
+      - name: Fix compileSdk
+        run: |
+          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 35/' tmpapp/android/app/build.gradle
+          sed -i 's/compileSdk flutter.compileSdkVersion/compileSdk 35/' tmpapp/android/app/build.gradle
+          sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 35/' tmpapp/android/app/build.gradle
+          sed -i 's/targetSdk flutter.targetSdkVersion/targetSdk 35/' tmpapp/android/app/build.gradle
+          echo "=== app/build.gradle ==="
+          cat tmpapp/android/app/build.gradle
+
       - name: Build APK
         working-directory: tmpapp
         run: flutter build apk --debug
