@@ -4,9 +4,6 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: jalan_jakarta
 
     steps:
       - uses: actions/checkout@v4
@@ -20,14 +17,20 @@ jobs:
         with:
           flutter-version: '3.19.6'
 
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Create Flutter project and copy source
+        run: |
+          flutter create --org com.jalanjakarta tmpapp
+          cp -r jalan_jakarta/lib tmpapp/
+          cp jalan_jakarta/pubspec.yaml tmpapp/
+          cd tmpapp
+          flutter pub get
 
       - name: Build APK
+        working-directory: tmpapp
         run: flutter build apk --debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: JalanJakarta-APK
-          path: jalan_jakarta/build/app/outputs/flutter-apk/app-debug.apk
+          path: tmpapp/build/app/outputs/flutter-apk/app-debug.apk
