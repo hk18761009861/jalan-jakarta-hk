@@ -30,23 +30,38 @@ jobs:
           python3 - << 'PYEOF'
           import re
 
+          # 修复 build.gradle - 统一 kotlin 版本为 1.9.22
+          with open('tmpapp/android/build.gradle', 'r') as f:
+              content = f.read()
+          content = re.sub(
+              r"ext\.kotlin_version\s*=\s*'[^']+'",
+              "ext.kotlin_version = '1.9.22'",
+              content
+          )
+          with open('tmpapp/android/build.gradle', 'w') as f:
+              f.write(content)
+          print("=== build.gradle ===")
+          print(content)
+
           # 修复 app/build.gradle
           with open('tmpapp/android/app/build.gradle', 'r') as f:
               content = f.read()
+
+          # 修复 minSdkVersion
           content = re.sub(r'minSdkVersion\s+\S+', 'minSdkVersion 21', content)
+
+          # 关键：删掉手动写死的 kotlin-stdlib 依赖行，避免版本冲突
+          content = re.sub(
+              r"\s*implementation\s+['\"]org\.jetbrains\.kotlin:kotlin-stdlib[^'\"]*['\"]",
+              '',
+              content
+          )
+
           with open('tmpapp/android/app/build.gradle', 'w') as f:
               f.write(content)
-          print("app/build.gradle:")
+          print("=== app/build.gradle ===")
           print(content)
 
-          # 修复 build.gradle kotlin版本
-          with open('tmpapp/android/build.gradle', 'r') as f:
-              content = f.read()
-          content = re.sub(r"ext\.kotlin_version\s*=\s*'[^']+'", "ext.kotlin_version = '1.9.22'", content)
-          with open('tmpapp/android/build.gradle', 'w') as f:
-              f.write(content)
-          print("build.gradle:")
-          print(content)
           PYEOF
 
       - name: Build APK
