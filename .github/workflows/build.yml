@@ -22,6 +22,8 @@ jobs:
           flutter create --org com.jalanjakarta tmpapp
           cp -r jalan_jakarta/lib tmpapp/
           cp jalan_jakarta/pubspec.yaml tmpapp/
+          sed -i 's/minSdkVersion 16/minSdkVersion 21/' tmpapp/android/app/build.gradle
+          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/' tmpapp/android/app/build.gradle
           cd tmpapp
           flutter pub get
 
